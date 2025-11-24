@@ -1,5 +1,6 @@
-# ------------------- IMPORTS -------------------
+## ------------------- IMPORTS -------------------
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import json, os, threading
 import smtplib
 from email.message import EmailMessage
@@ -8,6 +9,7 @@ from email_config import EMAIL_USER, EMAIL_PASS
 
 # ------------------- FLASK APP -------------------
 app = Flask(__name__)
+CORS(app)  # 🔹 Enable CORS for all routes
 LOCK = threading.Lock()
 
 # ------------------- NGROK AUTH -------------------
@@ -157,7 +159,6 @@ def recharge():
 
     return jsonify({"status": "success", "coins": users[username]["coins"]})
 
-# ------------------- ADMIN: Add/Delete Recharge Codes -------------------
 @app.route("/admin_add_recharge", methods=["POST"])
 def admin_add_recharge():
     data = request.get_json() or {}
