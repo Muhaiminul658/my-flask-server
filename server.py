@@ -15,7 +15,6 @@ USER_FILE = "users.json"
 RECHARGE_FILE = "recharge_codes.json"
 
 # ------------------- LOAD JSON -------------------
-# Create missing files automatically
 if not os.path.exists(USER_FILE):
     with open(USER_FILE, "w") as f:
         json.dump({}, f)
@@ -73,78 +72,68 @@ def login():
     })
 
 
-# ------------------- PROFILE -------------------
-@app.route("/profile", methods=["POST"])
-def profile():
-    data = request.get_json() or {}
-    username = data.get("username")
-
-    with open(USER_FILE, "r") as f:
-        users = json.load(f)
-
-    if username not in users:
-        return jsonify({"status": "error", "message": "User not found"})
-
-    return jsonify({
-        "status": "success",
-        "username": username,
-        "email": users[username]["email"],
-        "coins": users[username]["coins"]
-    })
-
-
-# ------------------- RECHARGE (User uses a code) -------------------
+# ------------------- RECHARGE (Apply Code) -------------------
 @app.route("/recharge", methods=["POST"])
 def recharge():
     data = request.get_json() or {}
     username = data.get("username")
     code = data.get("code")
 
+    with open(USER_FILE, "r") as f:
+        users = json.load(f)
+
+    with open(RECHARGE_FILE, "r") as f:
+        codes = json.load(f)
+
+    if username not in users:
+        return jsonify({"status": "error", "message": "User not found"})
+
+    if code not in codes:
+        return jsonify({"status": "error", "message": "Invalid code"})
+
+    coin_amount = codes[code]
+
+    # Update coins
+    users[username]["coins"] += coin_amount
+
+    # Delete used code
+    del codes[code]
+
     with LOCK:
-        with open(USER_FILE, "r") as f:
-            users = json.load(f)
-        with open(RECHARGE_FILE, "r") as f:
-            recharge_data = json.load(f)
-
-        if code not in recharge_data:
-            return jsonify({"status": "error", "message": "Invalid code"})
-
-        coins_to_add = recharge_data[code]
-        users[username]["coins"] += coins_to_add
-
-        # Delete used code
-        del recharge_data[code]
-
         with open(USER_FILE, "w") as f:
             json.dump(users, f, indent=4)
         with open(RECHARGE_FILE, "w") as f:
-            json.dump(recharge_data, f, indent=4)
+            json.dump(codes, f, indent=4)
 
-    return jsonify({"status": "success", "coins": users[username]["coins"]})
+    return jsonify({
+        "status": "success",
+        "message": "Recharge successful",
+        "coins": users[username]["coins"]
+    })
 
 
-# ------------------- ADMIN: ADD RECHARGE CODE -------------------
-@app.route("/admin_add_recharge", methods=["POST"])
-def admin_add_recharge():
+# ------------------- ADMIN: Add Recharge Code -------------------
+@app.route("/admin_add_code", methods=["POST"])
+def admin_add_code():
     data = request.get_json() or {}
     code = data.get("code")
     coins = data.get("coins")
 
     if not code or not coins:
-        return jsonify({"status": "error", "message": "Missing code or coins"})
+        return jsonify({"status": "error", "message": "Missing fields"})
+
+    with open(RECHARGE_FILE, "r") as f:
+        codes = json.load(f)
+
+    codes[code] = coins
 
     with LOCK:
-        with open(RECHARGE_FILE, "r") as f:
-            recharge_data = json.load(f)
-
-        recharge_data[code] = coins
-
         with open(RECHARGE_FILE, "w") as f:
-            json.dump(recharge_data, f, indent=4)
+            json.dump(codes, f, indent=4)
 
-    return jsonify({"status": "success", "message": "Recharge code added"})
+    return jsonify({"status": "success", "message": "Code added"})
 
 
 # ------------------- RUN SERVER -------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(port=5000, debug=True)
